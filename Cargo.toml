@@ -1,0 +1,58 @@
+[package]
+name = "ekiden-rust-sdk"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Enhanced Rust SDK for Ekiden Gateway API"
+authors = ["tonititi"]
+
+[dependencies]
+# HTTP client
+reqwest = { version = "0.12.15", features = ["stream", "json", "rustls-tls"], default-features = false }
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# WebSocket client
+tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
+tungstenite = { version = "0.21" }
+futures-util = { version = "0.3" }
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+# URL handling
+url = "2.4"
+# Crypto (for signatures)
+aptos-crypto = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main", features = ["fuzzing"] }
+hex = "0.4"
+sha3 = "0.10"
+rand = "0.8"
+# Utilities
+#chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
+# Logging
+tracing = "0.1"
+# Aptos sdk (for vault helpers)
+aptos-rust-sdk = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main" }
+aptos-rust-sdk-types = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main" }
+# Encoding
+urlencoding = "2.1.3"
+# Config
+config = "0.14"
+# Async streams
+async-stream = "0.3"
+pin-project-lite = "0.2"
+bcs = "0.1.6"
+
+[features]
+default = []
+
+[dev-dependencies]
+tokio-test = "0.4"
+tracing-subscriber = "0.3"
+test-log = "0.2"
+
+[patch.crates-io]
+merlin = { git = "https://github.com/aptos-labs/merlin" }
+x25519-dalek = { git = "https://github.com/aptos-labs/x25519-dalek", branch = "zeroize_v1" }
