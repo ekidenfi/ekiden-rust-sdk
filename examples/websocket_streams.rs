@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Public key: {}", key_pair.public_key());
 
     // Create client
-    let client = EkidenClient::local()?;
+    let client = EkidenClient::default_config()?;
     client.set_private_key(&key_pair.private_key()).await?;
 
     // Connect to WebSockets
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     // Example market address (you might need to adjust this)
-    let market_addr = "0x2245549db5a39c5644f4ff69aaab297df252649b8b59e18a9130d48f01d09ea";
+    let market_addr = "0x42f1ee729364e2095a2f08019a56b310ba8980288dd1c6bbbd769f19182c692c";
 
     // Start multiple concurrent streams
     let client_clone1 = client.clone();
@@ -154,77 +154,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Spawn user stream handler (requires authentication)
-    let user_handle = tokio::spawn(async move {
-        // Try to authenticate first
-        match client_clone3.authorize().await {
-            Ok(_) => {
-                println!("🔐 Authenticated for user stream");
-
-                if let Ok(mut user_rx) = client_clone3.subscribe_user(&user_addr).await {
-                    println!("👤 Subscribed to user updates for {}", user_addr);
-
-                    let mut count = 0;
-                    while count < 3 {
-                        // Limit to 3 events for demo
-                        match timeout(Duration::from_secs(5), user_rx.recv()).await {
-                            Ok(Ok(event)) => {
-                                match event {
-                                    WsEvent::OrderUpdate { order } => {
-                                        println!("📋 Order Update:");
-                                        println!("  Order ID: {}", order.sid);
-                                        println!("  Status: {}", order.status);
-                                        println!(
-                                            "  Side: {}, Size: {}, Price: {}",
-                                            order.side, order.size, order.price
-                                        );
-                                    }
-                                    WsEvent::PositionUpdate { position } => {
-                                        println!("📍 Position Update:");
-                                        println!("  Market: {}", position.market_addr);
-                                        println!(
-                                            "  Side: {}, Size: {}",
-                                            position.side, position.size
-                                        );
-                                        println!(
-                                            "  Entry Price: {}, Mark Price: {}",
-                                            position.entry_price, position.mark_price
-                                        );
-                                    }
-                                    WsEvent::BalanceUpdate { vault } => {
-                                        println!("💳 Balance Update:");
-                                        println!("  Vault: {}", vault.vault_addr);
-                                        println!(
-                                            "  Available: {}, Locked: {}",
-                                            vault.available_balance, vault.locked_balance
-                                        );
-                                    }
-                                    _ => {}
-                                }
-                                count += 1;
-                            }
-                            Ok(Err(e)) => {
-                                println!("❌ User stream error: {}", e);
-                                break;
-                            }
-                            Err(_) => {
-                                println!("⏰ User stream timeout (no user events)");
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    println!("❌ Failed to subscribe to user updates");
-                }
-            }
-            Err(e) => {
-                println!("❌ Failed to authenticate for user stream: {}", e);
-            }
-        }
-    });
-
     // Demonstrate manual channel subscription
-    let custom_channel = channels::orderbook("0x1234567890abcdef");
+    let custom_channel =
+        channels::orderbook("0x42f1ee729364e2095a2f08019a56b310ba8980288dd1c6bbbd769f19182c692c");
     println!(
         "📡 Attempting to subscribe to custom channel: {}",
         custom_channel
@@ -233,8 +165,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Wait for all streams to process some events
     println!("\n⏳ Waiting for stream events (up to 15 seconds)...");
 
-    let (orderbook_result, trades_result, user_result) =
-        tokio::join!(orderbook_handle, trades_handle, user_handle);
+    let (orderbook_result, trades_result) = tokio::join!(orderbook_handle, trades_handle);
 
     // Check results
     if let Err(e) = orderbook_result {
@@ -242,9 +173,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
     if let Err(e) = trades_result {
         println!("❌ Trades task error: {}", e);
-    }
-    if let Err(e) = user_result {
-        println!("❌ User task error: {}", e);
     }
 
     // Show active subscriptions

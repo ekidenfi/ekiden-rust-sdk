@@ -22,10 +22,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     println!("Public key: {}", key_pair.public_key());
+    println!("Private key: {}", key_pair.private_key());
 
     // Create client with configuration
     let client = EkidenClientBuilder::new()
-        .local()? // Use local development environment
+        .staging()? // Use local development environment
         .private_key(&key_pair.private_key())
         .timeout(Duration::from_secs(10))
         .with_logging(true)
@@ -176,13 +177,9 @@ async fn demonstrate_authenticated_api(
     match client.get_user_portfolio().await {
         Ok(portfolio) => {
             println!("✅ Portfolio retrieved");
-            println!("  Total Value: {}", portfolio.summary.total_value);
-            println!(
-                "  Available Balance: {}",
-                portfolio.summary.available_balance
-            );
-            println!("  Positions: {}", portfolio.positions.len());
-            println!("  Vaults: {}", portfolio.vaults.len());
+            println!("  Total Value: {:?}", portfolio.summary);
+            // println!("  Positions: {}", portfolio.positions.len());
+            // println!("  Vaults: {}", portfolio.vaults.len());
         }
         Err(e) => {
             println!("⚠️  Failed to get portfolio: {}", e);
@@ -196,11 +193,10 @@ async fn demonstrate_authenticated_api(
 
             for (i, vault) in vaults.iter().take(3).enumerate() {
                 println!(
-                    "  {}. Vault {} - Balance: {}, Available: {}",
+                    "  {}. Vault {} - Balance: {}",
                     i + 1,
-                    vault.vault_addr,
-                    vault.balance,
-                    vault.available_balance
+                    vault.addr,
+                    vault.amount,
                 );
             }
         }

@@ -159,11 +159,11 @@ impl WebSocketClient {
         self.subscribe(&channel).await
     }
 
-    /// Subscribe to user-specific updates (orders, positions, balances)
-    pub async fn subscribe_user(&self, user_addr: &str) -> Result<broadcast::Receiver<WsEvent>> {
-        let channel = format!("user/{}", user_addr);
-        self.subscribe(&channel).await
-    }
+    // /// Subscribe to user-specific updates (orders, positions, balances)
+    // pub async fn subscribe_user(&self, user_addr: &str) -> Result<broadcast::Receiver<WsEvent>> {
+    //     let channel = format!("user/{}", user_addr);
+    //     self.subscribe(&channel).await
+    // }
 
     /// Send a WebSocket request
     async fn send_request(&self, request: WsRequest) -> Result<()> {

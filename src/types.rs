@@ -168,14 +168,10 @@ pub struct ListFillsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VaultResponse {
-    pub vault_addr: String,
+    pub addr: String,
     pub user_addr: String,
     pub asset_addr: String,
-    pub balance: u64,
-    pub locked_balance: u64,
-    pub available_balance: u64,
-    pub created_at: String,
-    pub updated_at: String,
+    pub amount: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,10 +206,7 @@ pub struct ListPositionsParams {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LeverageResponse {
     pub market_addr: String,
-    pub user_addr: String,
     pub leverage: u64,
-    pub created_at: String,
-    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,12 +229,12 @@ pub struct PortfolioResponse {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortfolioSummary {
-    pub total_value: u64,
-    pub available_balance: u64,
-    pub locked_balance: u64,
-    pub unrealized_pnl: i64,
-    pub margin_used: u64,
-    pub margin_available: u64,
+    pub total_value: Option<u64>,
+    pub available_balance: Option<u64>,
+    pub locked_balance: Option<u64>,
+    pub unrealized_pnl: Option<i64>,
+    pub margin_used: Option<u64>,
+    pub margin_available: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -510,8 +503,11 @@ impl RequestConfig {
         }
     }
 
-    pub fn with_auth(mut self) -> Self {
+    pub fn with_auth(mut self, token: String) -> Self {
         self.auth_required = true;
+        self.headers
+            .insert("Authorization".to_string(), format!("Bearer {}", token));
+
         self
     }
 

@@ -101,6 +101,7 @@ impl EkidenClient {
             .request("authorize", RequestConfig::post(&auth_params)?)
             .await?;
 
+        println!("Authorization successful: {}", response.token);
         // Store the token
         {
             let mut auth = self.auth.write().await;
@@ -121,7 +122,6 @@ impl EkidenClient {
 
     /// Get a specific market by address
     pub async fn get_market_by_address(&self, market_addr: &str) -> Result<Option<MarketResponse>> {
-        format::validate_address(market_addr)?;
         let params = ListMarketsParams {
             market_addr: Some(market_addr.to_string()),
             symbol: None,
@@ -146,7 +146,6 @@ impl EkidenClient {
 
     /// Get orders for a market
     pub async fn get_orders(&self, params: ListOrdersParams) -> Result<Vec<OrderResponse>> {
-        format::validate_address(&params.market_addr)?;
         let config = RequestConfig::get().with_query(params.to_query_params());
         self.request("orders", config).await
     }
@@ -173,7 +172,6 @@ impl EkidenClient {
 
     /// Get fills (trades) for a market
     pub async fn get_fills(&self, params: ListFillsParams) -> Result<Vec<FillResponse>> {
-        format::validate_address(&params.market_addr)?;
         let config = RequestConfig::get().with_query(params.to_query_params());
         self.request("fills", config).await
     }
@@ -202,7 +200,7 @@ impl EkidenClient {
     pub async fn get_user_vaults(&self, params: ListVaultsParams) -> Result<Vec<VaultResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth();
+            .with_auth(self.token().await.unwrap_or_default());
         self.request("user/vaults", config).await
     }
 
@@ -221,7 +219,7 @@ impl EkidenClient {
     ) -> Result<Vec<PositionResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth();
+            .with_auth(self.token().await.unwrap_or_default());
         self.request("user/positions", config).await
     }
 
@@ -230,7 +228,6 @@ impl EkidenClient {
         &self,
         market_addr: &str,
     ) -> Result<Vec<PositionResponse>> {
-        format::validate_address(market_addr)?;
         let params = ListPositionsParams {
             market_addr: Some(market_addr.to_string()),
             pagination: Pagination::default(),
@@ -249,13 +246,12 @@ impl EkidenClient {
 
     /// Get user leverage for a market
     pub async fn get_user_leverage(&self, market_addr: &str) -> Result<LeverageResponse> {
-        format::validate_address(market_addr)?;
         let params = GetUserLeverageParams {
             market_addr: market_addr.to_string(),
         };
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth();
+            .with_auth(self.token().await.unwrap_or_default());
         self.request("user/leverage", config).await
     }
 
@@ -265,24 +261,26 @@ impl EkidenClient {
         market_addr: &str,
         leverage: u64,
     ) -> Result<LeverageResponse> {
-        format::validate_address(market_addr)?;
         let params = SetUserLeverageParams {
             market_addr: market_addr.to_string(),
             leverage,
         };
-        let config = RequestConfig::post(&params)?.with_auth();
+        let config =
+            RequestConfig::post(&params)?.with_auth(self.token().await.unwrap_or_default());
         self.request("user/leverage", config).await
     }
 
     /// Get user portfolio
     pub async fn get_user_portfolio(&self) -> Result<PortfolioResponse> {
-        let config = RequestConfig::get().with_auth();
+        let config = RequestConfig::get().with_auth(self.token().await.unwrap_or_default());
+        println!("Fetching user portfolio... {:?}", config);
         self.request("user/portfolio", config).await
     }
 
     /// Send an intent (execute actions)
     pub async fn send_intent(&self, params: SendIntentParams) -> Result<SendIntentResponse> {
-        let config = RequestConfig::post(&params)?.with_auth();
+        let config =
+            RequestConfig::post(&params)?.with_auth(self.token().await.unwrap_or_default());
         self.request("user/intent", config).await
     }
 
@@ -296,7 +294,6 @@ impl EkidenClient {
 
     /// Get user deposits
     pub async fn get_user_deposits(&self, user_addr: &str) -> Result<Vec<DepositResponse>> {
-        format::validate_address(user_addr)?;
         let params = ListDepositsParams {
             user_addr: Some(user_addr.to_string()),
             vault_addr: None,
@@ -319,7 +316,6 @@ impl EkidenClient {
 
     /// Get user withdrawals
     pub async fn get_user_withdrawals(&self, user_addr: &str) -> Result<Vec<WithdrawResponse>> {
-        format::validate_address(user_addr)?;
         let params = ListWithdrawsParams {
             user_addr: Some(user_addr.to_string()),
             vault_addr: None,
@@ -335,7 +331,6 @@ impl EkidenClient {
 
     /// Get candlestick data
     pub async fn get_candles(&self, params: ListCandlesParams) -> Result<Vec<CandleResponse>> {
-        format::validate_address(&params.market_addr)?;
         let config = RequestConfig::get().with_query(params.to_query_params());
         self.request("candles", config).await
     }
@@ -369,7 +364,6 @@ impl EkidenClient {
         &self,
         params: ListFundingRatesParams,
     ) -> Result<Vec<FundingRateResponse>> {
-        format::validate_address(&params.market_addr)?;
         let config = RequestConfig::get().with_query(params.to_query_params());
         self.request("funding_rate", config).await
     }
@@ -431,7 +425,6 @@ impl EkidenClient {
         &self,
         market_addr: &str,
     ) -> Result<tokio::sync::broadcast::Receiver<WsEvent>> {
-        format::validate_address(market_addr)?;
         if let Some(ws_client) = &self.ws_client {
             let client = ws_client.read().await;
             client.subscribe_orderbook(market_addr).await
@@ -445,24 +438,9 @@ impl EkidenClient {
         &self,
         market_addr: &str,
     ) -> Result<tokio::sync::broadcast::Receiver<WsEvent>> {
-        format::validate_address(market_addr)?;
         if let Some(ws_client) = &self.ws_client {
             let client = ws_client.read().await;
             client.subscribe_trades(market_addr).await
-        } else {
-            Err(EkidenError::config("WebSocket client not available"))
-        }
-    }
-
-    /// Subscribe to user updates
-    pub async fn subscribe_user(
-        &self,
-        user_addr: &str,
-    ) -> Result<tokio::sync::broadcast::Receiver<WsEvent>> {
-        format::validate_address(user_addr)?;
-        if let Some(ws_client) = &self.ws_client {
-            let client = ws_client.read().await;
-            client.subscribe_user(user_addr).await
         } else {
             Err(EkidenError::config("WebSocket client not available"))
         }

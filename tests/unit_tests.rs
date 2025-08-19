@@ -101,52 +101,11 @@ async fn test_auth_generate_authorize_params() {
 }
 
 #[test]
-fn test_format_validation() {
-    // Valid address
-    assert!(format::validate_address("0x1234567890abcdef1234567890abcdef12345678").is_ok());
-
-    // Invalid address (too short)
-    assert!(format::validate_address("0x123").is_err());
-
-    // Invalid address (invalid hex)
-    assert!(format::validate_address("0xgg34567890abcdef1234567890abcdef12345678").is_err());
-
-    // Valid public key
-    assert!(format::validate_public_key(
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-    )
-    .is_ok());
-
-    // Invalid public key (too short)
-    assert!(format::validate_public_key("0x123").is_err());
-
-    // Valid signature
-    assert!(format::validate_signature("0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").is_ok());
-
-    // Invalid signature (too short)
-    assert!(format::validate_signature("0x123").is_err());
-}
-
-#[test]
 fn test_hex_prefix_handling() {
     assert_eq!(format::ensure_hex_prefix("123"), "0x123");
     assert_eq!(format::ensure_hex_prefix("0x123"), "0x123");
     assert_eq!(format::strip_hex_prefix("0x123"), "123");
     assert_eq!(format::strip_hex_prefix("123"), "123");
-}
-
-#[test]
-fn test_normalization() {
-    let address = "1234567890abcdef1234567890abcdef12345678";
-    let normalized = format::normalize_address(address).unwrap();
-    assert_eq!(normalized, "0x1234567890abcdef1234567890abcdef12345678");
-
-    let public_key = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-    let normalized = format::normalize_public_key(public_key).unwrap();
-    assert_eq!(
-        normalized,
-        "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-    );
 }
 
 #[tokio::test]

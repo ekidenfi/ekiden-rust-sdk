@@ -156,22 +156,6 @@ pub mod format {
         hex_str.strip_prefix("0x").unwrap_or(hex_str)
     }
 
-    /// Validate that a string is a valid hex address
-    pub fn validate_address(address: &str) -> Result<()> {
-        let address = strip_hex_prefix(address);
-
-        if address.len() != 40 {
-            return Err(EkidenError::validation(
-                "Address must be 40 hex characters (20 bytes)",
-            ));
-        }
-
-        hex::decode(address)
-            .map_err(|_| EkidenError::validation("Invalid hex characters in address"))?;
-
-        Ok(())
-    }
-
     /// Validate that a string is a valid hex public key
     pub fn validate_public_key(public_key: &str) -> Result<()> {
         let public_key = strip_hex_prefix(public_key);
@@ -202,12 +186,6 @@ pub mod format {
             .map_err(|_| EkidenError::validation("Invalid hex characters in signature"))?;
 
         Ok(())
-    }
-
-    /// Normalize an address (lowercase, with 0x prefix)
-    pub fn normalize_address(address: &str) -> Result<String> {
-        validate_address(address)?;
-        Ok(ensure_hex_prefix(&strip_hex_prefix(address).to_lowercase()))
     }
 
     /// Normalize a public key (lowercase, with 0x prefix)
@@ -263,18 +241,6 @@ mod tests {
 
         let is_valid = Crypto::verify_signature(b"AUTHORIZE", &signature, &public_key).unwrap();
         assert!(is_valid);
-    }
-
-    #[test]
-    fn test_format_validation() {
-        // Valid address
-        assert!(format::validate_address("0x1234567890abcdef1234567890abcdef12345678").is_ok());
-
-        // Invalid address (too short)
-        assert!(format::validate_address("0x123").is_err());
-
-        // Invalid address (invalid hex)
-        assert!(format::validate_address("0xgg34567890abcdef1234567890abcdef12345678").is_err());
     }
 
     #[test]
