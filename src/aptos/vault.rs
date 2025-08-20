@@ -97,7 +97,7 @@ impl VaultContract {
     ) -> Result<RawTransaction, RestError> {
         let state = self.client.get_state().await?;
 
-        let max_gas_amount = 1000;
+        let max_gas_amount = 10000;
         let gas_unit_price = 100;
         let expiration_timestamp_secs = state.timestamp_usecs / 1000 / 1000 + 60 * 10;
 
@@ -222,7 +222,7 @@ impl VaultContract {
     }
     pub async fn deposit_into_user(
         &self,
-        amount: u128,
+        amount: u64,
         private_key: &str,
     ) -> Result<String, RestError> {
         println!("Depositing {} into vault", amount);
@@ -261,7 +261,7 @@ impl VaultContract {
     }
     pub async fn withdraw_from_user(
         &self,
-        amount: u128,
+        amount: u64,
         private_key: &str,
     ) -> Result<String, RestError> {
         println!("Withdrawing {} from vault", amount);
