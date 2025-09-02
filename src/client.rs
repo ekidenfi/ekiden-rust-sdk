@@ -464,6 +464,7 @@ impl EkidenClient {
         T: DeserializeOwned,
     {
         let url = self.config.api_url(path);
+        let auth_already_present = config.has_auth_header();
         let mut request = self.http_client.request(config.method, &url);
 
         // Add query parameters
@@ -477,7 +478,7 @@ impl EkidenClient {
         }
 
         // Add authentication headers if required
-        if config.auth_required {
+        if config.auth_required && !auth_already_present {
             let auth = self.auth.read().await;
             auth.ensure_authenticated()?;
             let auth_headers = auth.auth_headers();

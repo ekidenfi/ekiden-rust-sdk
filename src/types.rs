@@ -520,6 +520,10 @@ impl RequestConfig {
         self.headers.insert(key.into(), value.into());
         self
     }
+
+    pub fn has_auth_header(&self) -> bool {
+        self.headers.contains_key("Authorization") || self.headers.contains_key("authorization")
+    }
 }
 
 // ===== Utility Functions =====
