@@ -23,6 +23,8 @@ thiserror = "1.0"
 anyhow = "1.0"
 # URL handling
 url = "2.4"
+#Ekiden-core
+ekiden-core = { git = "https://github.com/ekidenfi/ekiden", branch = "main" }
 # Crypto (for signatures)
 aptos-crypto = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main", features = ["fuzzing"] }
 hex = "0.4"

@@ -1,3 +1,7 @@
+use ekiden_core::{
+    referee::ActionStatus,
+    sequencer::{ActionPayload, Intent, IntentOutput},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -265,28 +269,17 @@ pub struct PortfolioVault {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendIntentParams {
-    pub actions: Vec<ActionPayload>,
+    pub payload: ActionPayload,
+    pub nonce: u64,
     pub signature: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendIntentResponse {
+    pub output: IntentOutput,
     pub seq: u64,
-    pub status: String,
-    pub outputs: Vec<IntentOutput>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ActionPayload {
-    #[serde(rename = "type")]
-    pub action_type: String,
-    pub data: serde_json::Value,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IntentOutput {
-    pub action_type: String,
-    pub result: serde_json::Value,
+    pub version: u64,
+    pub timestamp: u64,
 }
 
 // ===== Deposit/Withdrawal Types =====

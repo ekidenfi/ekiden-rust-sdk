@@ -4,13 +4,21 @@ use crate::error::{EkidenError, Result};
 use crate::types::*;
 use crate::utils::format;
 use crate::ws::WebSocketClient;
+use aptos_crypto::{
+    ed25519::Ed25519PrivateKey, ed25519::Signature, PrivateKey, SigningKey,
+    ValidCryptoMaterialStringExt,
+};
+use ekiden_core::sequencer::SigningIntent;
+use ekiden_core::{
+    referee::ActionStatus,
+    sequencer::{ActionPayload, IntentSignatureBody},
+};
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
-
 /// Main Ekiden client for interacting with the API and WebSocket
 #[derive(Debug, Clone)]
 pub struct EkidenClient {
@@ -277,11 +285,27 @@ impl EkidenClient {
         self.request("user/portfolio", config).await
     }
 
+    pub fn sign_intent(
+        &self,
+        private_key_str: &str,
+        payload: &ActionPayload,
+        nonce: u64,
+    ) -> Result<Signature> {
+        let key_pair = Ed25519PrivateKey::from_encoded_string(&private_key_str).unwrap();
+        let signature = key_pair
+            .sign_intent(IntentSignatureBody {
+                payload: payload.clone(),
+                nonce,
+            })
+            .map_err(|e| EkidenError::auth(&format!("Failed to sign intent: {}", e)))?;
+        Ok(signature)
+    }
+
     /// Send an intent (execute actions)
     pub async fn send_intent(&self, params: SendIntentParams) -> Result<SendIntentResponse> {
         let config =
             RequestConfig::post(&params)?.with_auth(self.token().await.unwrap_or_default());
-        self.request("user/intent", config).await
+        self.request("user/intent/commit", config).await
     }
 
     // ===== Deposit/Withdrawal Endpoints =====

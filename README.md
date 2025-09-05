@@ -13,6 +13,26 @@ A comprehensive, type-safe Rust SDK for interacting with the Ekiden Gateway API 
 - 📊 **Aptos Integration**: Optional Aptos blockchain utilities
 - 🧪 **Well Tested**: Comprehensive test coverage
 
+## Setup
+
+### Environment Variables
+
+Before building or running the project, you need to set up your environment variables:
+
+1. Edit `.env` and replace `your_github_token_here` with your actual GitHub Personal Access Token:
+
+   ```bash
+   GITHUB_TOKEN=ghp_your_actual_token_here
+   ```
+
+### Building the Project
+
+Once your environment is set up, you can build the project:
+
+```bash
+cargo build
+```
+
 ## Examples
 
 Check the `examples/` directory for complete working examples:
