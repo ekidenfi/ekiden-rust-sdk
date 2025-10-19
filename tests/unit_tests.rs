@@ -1,3 +1,7 @@
+use std::iter;
+use std::time::{SystemTime, UNIX_EPOCH};
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use ekiden_rust_sdk::{
     utils::{format, Crypto},
     Auth, EkidenClient, EkidenConfig, EkidenError, KeyPair, OrderSide, Pagination,
@@ -61,10 +65,18 @@ async fn test_signature_verification() {
 #[tokio::test]
 async fn test_authorize_signature() {
     let key_pair = KeyPair::generate();
-    let signature = key_pair.sign_authorize();
+    let now = SystemTime::now();
+    let mut rng = thread_rng();
+    let timestamp = now.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
+    let nonce: String = iter::repeat(())
+        .map(|()| rng.sample(Alphanumeric))
+        .map(char::from)
+        .take(10) // Generate a string of 10 characters
+        .collect();
+    let signature = key_pair.sign_authorize(timestamp, &nonce);
     let public_key = key_pair.public_key();
 
-    let is_valid = Crypto::verify_signature(b"AUTHORIZE", &signature, &public_key).unwrap();
+    let is_valid = Crypto::verify_signature(format!("AUTHORIZE|{}|{}", timestamp, nonce).as_bytes(), &signature, &public_key).unwrap();
     assert!(is_valid);
 }
 

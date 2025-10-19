@@ -1,4 +1,4 @@
-use aptos_crypto::{ed25519, HashValue, ValidCryptoMaterialStringExt};
+use aptos_crypto::{ed25519, HashValue, SigningKey, ValidCryptoMaterial, ValidCryptoMaterialStringExt};
 use aptos_rust_sdk::client::{
     builder::AptosClientBuilder, config::AptosNetwork, rest_api::AptosFullnodeClient,
 };
@@ -15,6 +15,8 @@ use aptos_rust_sdk_types::{
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, time::Duration};
 use tokio::time::Instant;
+use crate::KeyPair;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VaultId {
     pub inner: String,
@@ -44,7 +46,7 @@ impl VaultContract {
         };
 
         let client = AptosClientBuilder::new(network).build();
-        let contract_addr = AccountAddress::from_str(&contract_addr).unwrap();
+        let contract_addr = AccountAddress::from_str(contract_addr).unwrap();
         let asset_addr = AccountAddress::from_str(asset_addr).unwrap();
 
         Self {
@@ -64,14 +66,10 @@ impl VaultContract {
         let sequence_number = resource
             .iter()
             .find(|r| r.type_ == "0x1::account::Account")
-            .unwrap()
-            .data
-            .get("sequence_number")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .parse::<u64>()
-            .unwrap();
+            .and_then(|r| r.data.get("sequence_number"))
+            .and_then(|v| v.as_str())
+            .and_then(|v| v.parse::<u64>().ok())
+            .unwrap_or(2);
 
         Ok(sequence_number)
     }
@@ -226,7 +224,7 @@ impl VaultContract {
         private_key: &str,
     ) -> Result<String, RestError> {
         println!("Depositing {} into vault", amount);
-        let signer = ed25519::Ed25519PrivateKey::from_encoded_string(&private_key).unwrap();
+        let signer = ed25519::Ed25519PrivateKey::from_encoded_string(private_key).unwrap();
         let public_key = ed25519::PublicKey::from(&signer);
         let auth_key = AuthenticationKey::ed25519(&public_key);
         let acc_addr = auth_key.account_address();
@@ -259,13 +257,63 @@ impl VaultContract {
         )
         .await
     }
+
+    fn make_link_proof(root: &KeyPair, sub_account: &KeyPair,) -> Vec<u8> {
+        let mut proof = vec![];
+        proof.extend(sub_account.get_public_key().to_bytes());
+        let auth_key = AuthenticationKey::ed25519(&root.get_public_key());
+        let acc_addr = auth_key.account_address();
+        proof.extend(acc_addr.to_bytes());
+        assert_eq!(proof.len(), 64);
+        let sig = sub_account.get_private_key().sign_arbitrary_message(acc_addr.to_bytes());
+        proof.extend(sig.to_bytes());
+        proof
+    }
+
+    pub async fn create_ekiden_user(
+        &self,
+        root: &KeyPair,
+        funding: &KeyPair,
+        trading: &KeyPair,
+    ) -> Result<String, RestError> {
+        let auth_key = AuthenticationKey::ed25519(&root.get_public_key());
+        let acc_addr = auth_key.account_address();
+        let funding_proof = Self::make_link_proof(root, funding);
+        let trading_proof = Self::make_link_proof(root, trading);
+        let arguments = vec![
+            bcs::to_bytes(&funding_proof).unwrap(),
+            bcs::to_bytes(&trading_proof).unwrap(),
+            bcs::to_bytes(&self.asset_addr).unwrap(),
+        ];
+        let entry_function = EntryFunction::new(
+            ModuleId::new(self.contract_addr, "user".to_string()),
+            "create_ekiden_user".to_string(),
+            vec![],
+            arguments,
+        );
+
+        let sequence_number = self
+            .get_sequence_number(&acc_addr)
+            .await
+            .map_err(|_e| RestError::Timeout("Failed to get sequence number"))?;
+        println!(
+            "Start submitting transaction with sequence number: {}",
+            sequence_number
+        );
+        self.submit(
+            TransactionPayload::EntryFunction(entry_function),
+            root.get_private_key().clone(),
+            Some(sequence_number),
+        )
+            .await
+    }
     pub async fn withdraw_from_user(
         &self,
         amount: u64,
         private_key: &str,
     ) -> Result<String, RestError> {
         println!("Withdrawing {} from vault", amount);
-        let signer = ed25519::Ed25519PrivateKey::from_encoded_string(&private_key).unwrap();
+        let signer = ed25519::Ed25519PrivateKey::from_encoded_string(private_key).unwrap();
         let public_key = ed25519::PublicKey::from(&signer);
         let auth_key = AuthenticationKey::ed25519(&public_key);
         let acc_addr = auth_key.account_address();

@@ -8,11 +8,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let testnet_usdc = "0x9967e130f7419f791c240acc17dde966ec84ad41652e2e87083ee613f460d019";
 
-    let ekiden_contract = "0x9e53ba9771421bddb0ba8722cde10b8c6a933dba8557075610698a95b8a82ec6";
+    let ekiden_contract = "0xa436c4c966963e91da2471718cdfa6df58182ff171c7fdb07655a3bc2dc63ff9";
     let private = std::env::args()
         .nth(1)
         .ok_or_else(|| anyhow::anyhow!("Missing argument for private key"))?;
-    let vault_contract = VaultContract::new(&ekiden_contract, testnet_usdc, "testnet");
+    let vault_contract = VaultContract::new(ekiden_contract, testnet_usdc, "testnet");
     let deposit_tx = vault_contract
         .deposit_into_user(10000000u64, &private)
         .await?;

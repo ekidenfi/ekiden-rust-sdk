@@ -1,5 +1,5 @@
 use ekiden_rust_sdk::{
-    EkidenClient, EkidenClientBuilder, KeyPair, LeverageResponse, ListOrdersParams, Pagination,
+    EkidenClient, EkidenClientBuilder, KeyPair,
 };
 use std::time::Duration;
 
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create client with configuration
     let client = EkidenClientBuilder::new()
         .local()? // Use local development environment
-        .private_key(&key_pair.private_key())
+        .private_key(key_pair.private_key())
         .timeout(Duration::from_secs(10))
         .with_logging(true)
         .build_and_auth()

@@ -1,7 +1,4 @@
-use ekiden_core::{
-    referee::ActionStatus,
-    sequencer::{ActionPayload, Intent, IntentOutput},
-};
+use ekiden_core::sequencer::{ActionPayload, IntentOutput};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -52,6 +49,8 @@ impl Pagination {
 pub struct AuthorizeParams {
     pub signature: String,
     pub public_key: String,
+    pub timestamp_ms: i64,
+    pub nonce: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -84,6 +83,7 @@ pub struct MarketResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default)]
 pub struct ListMarketsParams {
     pub market_addr: Option<String>,
     pub symbol: Option<String>,
@@ -91,15 +91,6 @@ pub struct ListMarketsParams {
     pub pagination: Pagination,
 }
 
-impl Default for ListMarketsParams {
-    fn default() -> Self {
-        Self {
-            market_addr: None,
-            symbol: None,
-            pagination: Pagination::default(),
-        }
-    }
-}
 
 // ===== Order Types =====
 
