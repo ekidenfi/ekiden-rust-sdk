@@ -1,6 +1,4 @@
-use ekiden_rust_sdk::{
-    EkidenClient, EkidenClientBuilder, KeyPair,
-};
+use ekiden_rust_sdk::{EkidenClient, EkidenClientBuilder, KeyPair};
 use std::time::Duration;
 
 #[tokio::main]

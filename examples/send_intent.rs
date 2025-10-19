@@ -1,7 +1,8 @@
-use aptos_crypto::{
-    PrivateKey, ValidCryptoMaterialStringExt,
+use aptos_crypto::ValidCryptoMaterialStringExt;
+use ekiden_rust_sdk::{
+    ActionPayload, EkidenClient, EkidenClientBuilder, KeyPair, OrderCancelAllAction, OrderCreate,
+    OrderCreateAction, SendIntentParams, TimeInForce,
 };
-use ekiden_rust_sdk::{ActionPayload, EkidenClient, EkidenClientBuilder, KeyPair, OrderCancelAllAction, OrderCreate, OrderCreateAction, SendIntentParams, TimeInForce};
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -90,7 +91,6 @@ async fn demonstrate_authenticated_api(
     // Get user portfolio
     let send_res = client.send_intent(intent_body).await;
     println!("Send Intent Response: {:?}", send_res);
-
 
     // Create order create intent
 

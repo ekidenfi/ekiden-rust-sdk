@@ -1,11 +1,11 @@
+use aptos_crypto::ed25519::{Ed25519PrivateKey, Ed25519Signature};
+use aptos_crypto::{signing_message, CryptoMaterialError};
+use aptos_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
-use aptos_crypto::{signing_message, CryptoMaterialError};
-use aptos_crypto::ed25519::{Ed25519PrivateKey, Ed25519Signature};
-use aptos_crypto_derive::{BCSCryptoHash, CryptoHasher};
-use serde_with::{serde_as, DisplayFromStr};
 // ===== Common Pagination =====
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,15 +87,13 @@ pub struct MarketResponse {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ListMarketsParams {
     pub market_addr: Option<String>,
     pub symbol: Option<String>,
     #[serde(flatten)]
     pub pagination: Pagination,
 }
-
 
 // ===== Order Types =====
 

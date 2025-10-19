@@ -1,5 +1,9 @@
 use crate::error::{EkidenError, Result};
-use aptos_crypto::{ed25519, ed25519::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature}, PrivateKey, Signature, SigningKey, Uniform, ValidCryptoMaterialStringExt};
+use aptos_crypto::{
+    ed25519,
+    ed25519::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
+    PrivateKey, Signature, SigningKey, Uniform, ValidCryptoMaterialStringExt,
+};
 use hex;
 use sha3::{Digest, Keccak256};
 
@@ -210,11 +214,11 @@ pub mod format {
 
 #[cfg(test)]
 mod tests {
-    use std::iter;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use super::*;
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
-    use super::*;
+    use std::iter;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn test_key_pair_generation() {
@@ -248,13 +252,17 @@ mod tests {
         let timestamp = now.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
         let nonce: String = iter::repeat(())
             .map(|()| rng.sample(Alphanumeric))
-            .map(char::from)
             .take(10) // Generate a string of 10 characters
             .collect();
         let signature = key_pair.sign_authorize(timestamp, &nonce);
         let public_key = key_pair.public_key();
 
-        let is_valid = Crypto::verify_signature(format!("AUTHORIZE|{}|{}", timestamp, nonce).as_bytes(), &signature, &public_key).unwrap();
+        let is_valid = Crypto::verify_signature(
+            format!("AUTHORIZE|{}|{}", timestamp, nonce).as_bytes(),
+            &signature,
+            &public_key,
+        )
+        .unwrap();
         assert!(is_valid);
     }
 

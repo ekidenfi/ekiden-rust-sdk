@@ -1,10 +1,10 @@
-use std::iter;
-use std::time::{SystemTime, UNIX_EPOCH};
 use crate::error::{EkidenError, Result};
 use crate::types::{AuthorizeParams, AuthorizeResponse};
 use crate::utils::{format, KeyPair};
-use rand::{Rng, thread_rng};
 use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
+use std::iter;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Authentication manager for the Ekiden client
 #[derive(Debug, Clone)]
@@ -74,7 +74,6 @@ impl Auth {
             .as_ref()
             .ok_or_else(|| EkidenError::auth("No key pair available for signing"))?;
 
-        
         let public_key = key_pair.public_key();
 
         // Validate the generated parameters
@@ -83,7 +82,6 @@ impl Auth {
         let timestamp = now.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
         let nonce: String = iter::repeat(())
             .map(|()| rng.sample(Alphanumeric))
-            .map(char::from)
             .take(10) // Generate a string of 10 characters
             .collect();
 

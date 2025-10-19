@@ -1,6 +1,6 @@
 use ekiden_rust_sdk::aptos::vault::VaultContract;
-use std::time::Duration;
 use ekiden_rust_sdk::KeyPair;
+use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,12 +42,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let ekiden_contract = "0xa436c4c966963e91da2471718cdfa6df58182ff171c7fdb07655a3bc2dc63ff9";
     let vault_contract = VaultContract::new(ekiden_contract, testnet_usdc, "testnet");
-    vault_contract.create_ekiden_user(&owner_key, &funding_key, &trading_key).await?;
+    vault_contract
+        .create_ekiden_user(&owner_key, &funding_key, &trading_key)
+        .await?;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     let vault_contract = VaultContract::new(ekiden_contract, testnet_usdc, "testnet");
     let deposit_tx = vault_contract
-        .deposit_into_funding_with_transfer_to_cross_trading(10000000u64, &owner_key, &funding_key, &trading_key)
+        .deposit_into_funding_with_transfer_to_cross_trading(
+            10000000u64,
+            &owner_key,
+            &funding_key,
+            &trading_key,
+        )
         .await?;
     println!("Deposit transaction: {:?}", deposit_tx);
     // sleep 2 second

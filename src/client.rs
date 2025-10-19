@@ -3,10 +3,7 @@ use crate::config::EkidenConfig;
 use crate::error::{EkidenError, Result};
 use crate::types::*;
 use crate::ws::WebSocketClient;
-use aptos_crypto::{
-    ed25519::Ed25519PrivateKey, ed25519::Signature,
-    ValidCryptoMaterialStringExt,
-};
+use aptos_crypto::{ed25519::Ed25519PrivateKey, ed25519::Signature, ValidCryptoMaterialStringExt};
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -98,12 +95,20 @@ impl EkidenClient {
 
     /// Get the current authentication token
     pub async fn funding_token(&self) -> Option<String> {
-        self.funding_auth.read().await.token().map(|s| s.to_string())
+        self.funding_auth
+            .read()
+            .await
+            .token()
+            .map(|s| s.to_string())
     }
 
     /// Get the current authentication token
     pub async fn trading_token(&self) -> Option<String> {
-        self.trading_auth.read().await.token().map(|s| s.to_string())
+        self.trading_auth
+            .read()
+            .await
+            .token()
+            .map(|s| s.to_string())
     }
 
     /// Get the public key if available

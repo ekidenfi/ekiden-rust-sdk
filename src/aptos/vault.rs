@@ -1,3 +1,4 @@
+use crate::KeyPair;
 use aptos_crypto::{ed25519, HashValue, SigningKey, ValidCryptoMaterialStringExt};
 use aptos_rust_sdk::client::{
     builder::AptosClientBuilder, config::AptosNetwork, rest_api::AptosFullnodeClient,
@@ -15,7 +16,6 @@ use aptos_rust_sdk_types::{
 use serde::{Deserialize, Serialize};
 use std::{str::FromStr, time::Duration};
 use tokio::time::Instant;
-use crate::KeyPair;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VaultId {
@@ -98,11 +98,12 @@ impl VaultContract {
         let max_gas_amount = 10000;
         let gas_unit_price = 100;
         let expiration_timestamp_secs = state.timestamp_usecs / 1000 / 1000 + 60 * 10;
+        let sequence_number;
 
-        let sequence_number = if sequence_number_option.is_some() {
-            sequence_number_option.unwrap()
+        if let Some(number) = sequence_number_option {
+            sequence_number = number;
         } else {
-            self.get_sequence_number(&sender).await?
+            sequence_number = self.get_sequence_number(&sender).await?;
         };
 
         let chain_id = self.get_chain_id();
@@ -226,8 +227,10 @@ impl VaultContract {
         trading_key: &KeyPair,
     ) -> Result<String, RestError> {
         println!("Depositing {} into vault", amount);
-        let funding_addr = AuthenticationKey::ed25519(&funding_key.get_public_key()).account_address();
-        let trading_addr = AuthenticationKey::ed25519(&trading_key.get_public_key()).account_address();
+        let funding_addr =
+            AuthenticationKey::ed25519(&funding_key.get_public_key()).account_address();
+        let trading_addr =
+            AuthenticationKey::ed25519(&trading_key.get_public_key()).account_address();
 
         let auth_key = AuthenticationKey::ed25519(&owner_key.get_public_key());
         let acc_addr = auth_key.account_address();
@@ -265,14 +268,16 @@ impl VaultContract {
         .await
     }
 
-    fn make_link_proof(root: &KeyPair, sub_account: &KeyPair,) -> Vec<u8> {
+    fn make_link_proof(root: &KeyPair, sub_account: &KeyPair) -> Vec<u8> {
         let mut proof = vec![];
         proof.extend(sub_account.get_public_key().to_bytes());
         let auth_key = AuthenticationKey::ed25519(&root.get_public_key());
         let acc_addr = auth_key.account_address();
         proof.extend(acc_addr.to_bytes());
         assert_eq!(proof.len(), 64);
-        let sig = sub_account.get_private_key().sign_arbitrary_message(acc_addr.to_bytes());
+        let sig = sub_account
+            .get_private_key()
+            .sign_arbitrary_message(acc_addr.to_bytes());
         proof.extend(sig.to_bytes());
         proof
     }
@@ -312,7 +317,7 @@ impl VaultContract {
             root.get_private_key().clone(),
             Some(sequence_number),
         )
-            .await
+        .await
     }
     pub async fn withdraw_from_user(
         &self,
