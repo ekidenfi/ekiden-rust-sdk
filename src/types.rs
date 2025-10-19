@@ -63,6 +63,7 @@ pub struct AuthorizeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketResponse {
     pub symbol: String,
+    pub addr: String,
     pub base_addr: String,
     pub base_decimals: u8,
     pub quote_addr: String,
@@ -219,7 +220,7 @@ pub struct SetUserLeverageParams {
 pub struct PortfolioResponse {
     pub summary: PortfolioSummary,
     pub positions: Vec<PortfolioPosition>,
-    pub vaults: Vec<PortfolioVault>,
+    pub vault_balances: Vec<PortfolioVault>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -247,13 +248,9 @@ pub struct PortfolioPosition {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortfolioVault {
-    pub vault_addr: String,
+    pub id: u64,
     pub asset_addr: String,
-    pub symbol: String,
     pub balance: u64,
-    pub locked_balance: u64,
-    pub available_balance: u64,
-    pub usd_value: u64,
 }
 
 // ===== Intent Types =====
@@ -325,20 +322,19 @@ pub struct ListWithdrawsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandleResponse {
-    pub market_addr: String,
     pub timestamp: u64,
-    pub open: u64,
-    pub high: u64,
-    pub low: u64,
-    pub close: u64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
     pub volume: u64,
-    pub interval: String,
+    pub count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListCandlesParams {
     pub market_addr: String,
-    pub interval: String, // "1m", "5m", "15m", "1h", "4h", "1d"
+    pub timeframe: String, // "1m", "5m", "15m", "1h", "4h", "1d"
     pub start_time: Option<u64>,
     pub end_time: Option<u64>,
     #[serde(flatten)]
@@ -608,7 +604,7 @@ impl ToQueryParams for ListCandlesParams {
     fn to_query_params(&self) -> HashMap<String, String> {
         let mut params = self.pagination.to_query_params();
         params.insert("market_addr".to_string(), self.market_addr.clone());
-        params.insert("interval".to_string(), self.interval.clone());
+        params.insert("timeframe".to_string(), self.timeframe.clone());
 
         if let Some(start_time) = self.start_time {
             params.insert("start_time".to_string(), start_time.to_string());

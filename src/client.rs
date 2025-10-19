@@ -191,7 +191,7 @@ impl EkidenClient {
     /// Get market information
     pub async fn get_markets(&self, params: ListMarketsParams) -> Result<Vec<MarketResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("market_info", config).await
+        self.request("market/market_info", config).await
     }
 
     /// Get a specific market by address
@@ -221,7 +221,7 @@ impl EkidenClient {
     /// Get orders for a market
     pub async fn get_orders(&self, params: ListOrdersParams) -> Result<Vec<OrderResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("orders", config).await
+        self.request("market/orders", config).await
     }
 
     /// Get orders for a specific market and side
@@ -247,7 +247,7 @@ impl EkidenClient {
     /// Get fills (trades) for a market
     pub async fn get_fills(&self, params: ListFillsParams) -> Result<Vec<FillResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("fills", config).await
+        self.request("market/fills", config).await
     }
 
     /// Get recent fills for a market
@@ -274,7 +274,7 @@ impl EkidenClient {
     pub async fn get_user_vaults(&self, params: ListVaultsParams) -> Result<Vec<VaultResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth(self.token().await.unwrap_or_default());
+            .with_auth(self.trading_token().await.unwrap_or_default());
         self.request("user/vaults", config).await
     }
 
@@ -293,7 +293,7 @@ impl EkidenClient {
     ) -> Result<Vec<PositionResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth(self.token().await.unwrap_or_default());
+            .with_auth(self.trading_token().await.unwrap_or_default());
         self.request("user/positions", config).await
     }
 
@@ -346,7 +346,7 @@ impl EkidenClient {
 
     /// Get user portfolio
     pub async fn get_user_portfolio(&self) -> Result<PortfolioResponse> {
-        let config = RequestConfig::get().with_auth(self.token().await.unwrap_or_default());
+        let config = RequestConfig::get().with_auth(self.trading_token().await.unwrap_or_default());
         println!("Fetching user portfolio... {:?}", config);
         self.request("user/portfolio", config).await
     }
@@ -422,7 +422,7 @@ impl EkidenClient {
     /// Get candlestick data
     pub async fn get_candles(&self, params: ListCandlesParams) -> Result<Vec<CandleResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("candles", config).await
+        self.request("market/candles", config).await
     }
 
     /// Get recent candles for a market
@@ -434,7 +434,7 @@ impl EkidenClient {
     ) -> Result<Vec<CandleResponse>> {
         let params = ListCandlesParams {
             market_addr: market_addr.to_string(),
-            interval: interval.to_string(),
+            timeframe: interval.to_string(),
             start_time: None,
             end_time: None,
             pagination: Pagination {
