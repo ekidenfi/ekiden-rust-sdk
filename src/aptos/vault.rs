@@ -218,26 +218,33 @@ impl VaultContract {
             tokio::time::sleep(Duration::from_millis(500)).await;
         }
     }
-    pub async fn deposit_into_user(
+    pub async fn deposit_into_funding_with_transfer_to_cross_trading(
         &self,
         amount: u64,
-        private_key: &str,
+        owner_key: &KeyPair,
+        funding_key: &KeyPair,
+        trading_key: &KeyPair,
     ) -> Result<String, RestError> {
         println!("Depositing {} into vault", amount);
-        let signer = ed25519::Ed25519PrivateKey::from_encoded_string(private_key).unwrap();
-        let public_key = ed25519::PublicKey::from(&signer);
-        let auth_key = AuthenticationKey::ed25519(&public_key);
+        let funding_addr = AuthenticationKey::ed25519(&funding_key.get_public_key()).account_address();
+        let trading_addr = AuthenticationKey::ed25519(&trading_key.get_public_key()).account_address();
+
+        let auth_key = AuthenticationKey::ed25519(&owner_key.get_public_key());
         let acc_addr = auth_key.account_address();
-        println!("Public key: {}", public_key);
+        println!("Public key: {}", owner_key.get_public_key());
         println!("Account address: {}", acc_addr);
+        println!("Funding address: {}", funding_addr);
+        println!("Trading address: {}", trading_addr);
         println!("Vault contract address: {}", self.contract_addr);
         let arguments = vec![
+            bcs::to_bytes(&funding_addr).unwrap(),
+            bcs::to_bytes(&trading_addr).unwrap(),
             bcs::to_bytes(&self.asset_addr).unwrap(),
             bcs::to_bytes(&amount).unwrap(), // Convert u128 to bytes
         ];
         let entry_function = EntryFunction::new(
             ModuleId::new(self.contract_addr, "vault".to_string()),
-            "deposit_into_user".to_string(),
+            "deposit_into_funding_with_transfer_to_cross_trading".to_string(),
             vec![],
             arguments,
         );
@@ -252,7 +259,7 @@ impl VaultContract {
         );
         self.submit(
             TransactionPayload::EntryFunction(entry_function),
-            signer,
+            owner_key.get_private_key().clone(),
             Some(sequence_number),
         )
         .await
