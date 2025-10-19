@@ -182,18 +182,25 @@ pub struct ListVaultsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionResponse {
+    pub sid: String,
     pub market_addr: String,
     pub user_addr: String,
-    pub side: String,
-    pub size: u64,
+    pub size: i64,
+    pub price: u64,
     pub entry_price: u64,
-    pub mark_price: u64,
-    pub unrealized_pnl: i64,
     pub margin: u64,
-    pub leverage: u64,
-    pub liquidation_price: u64,
-    pub created_at: String,
-    pub updated_at: String,
+    pub funding_index: u64,
+    pub is_cross: bool,
+    pub initial_margin: Option<u64>,
+    pub initial_margin_mark: Option<u64>,
+    pub maintenance_margin: Option<u64>,
+    pub leverage: Option<u64>,
+    pub mark_price: u64,
+    pub side: String,
+    pub unrealized_pnl: i64,
+    pub liq_price: Option<u64>,
+    pub timestamp: u64,
+    pub timestamp_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
