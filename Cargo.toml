@@ -13,6 +13,7 @@ reqwest = { version = "0.12.15", features = ["stream", "json", "rustls-tls"], de
 tokio = { version = "1.0", features = ["full"] }
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
+serde_with = "=1.6.1"
 serde_json = "1.0"
 # WebSocket client
 tokio-tungstenite = { version = "0.26.2", features = ["native-tls"] }
@@ -23,10 +24,9 @@ thiserror = "1.0"
 anyhow = "1.0"
 # URL handling
 url = "2.4"
-#Ekiden-core
-ekiden-core = { git = "https://github.com/ekidenfi/ekiden", branch = "main" }
 # Crypto (for signatures)
 aptos-crypto = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main", features = ["fuzzing"] }
+aptos-crypto-derive = { git = "https://github.com/vecheslav/aptos-rust-sdk.git", branch = "main" }
 hex = "0.4"
 sha3 = "0.10"
 # version compatible with aptos-crypto

@@ -1,4 +1,4 @@
-use aptos_crypto::{ed25519, HashValue, SigningKey, ValidCryptoMaterial, ValidCryptoMaterialStringExt};
+use aptos_crypto::{ed25519, HashValue, SigningKey, ValidCryptoMaterialStringExt};
 use aptos_rust_sdk::client::{
     builder::AptosClientBuilder, config::AptosNetwork, rest_api::AptosFullnodeClient,
 };

@@ -1,7 +1,11 @@
-use ekiden_core::sequencer::{ActionPayload, IntentOutput};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+use aptos_crypto::{signing_message, CryptoMaterialError};
+use aptos_crypto::ed25519::{Ed25519PrivateKey, Ed25519Signature};
+use aptos_crypto_derive::{BCSCryptoHash, CryptoHasher};
+use serde_with::{serde_as, DisplayFromStr};
 // ===== Common Pagination =====
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -255,11 +259,143 @@ pub struct PortfolioVault {
 
 // ===== Intent Types =====
 
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub enum TimeInForce {
+    #[default]
+    #[serde(rename = "GTC")]
+    // Regardless of what porion of the order is filled, remainder is placed into OrderBook
+    GTC,
+    #[serde(rename = "IOC")]
+    // Fills as much is possible, unfilled part is cancelled and not placed in OrderBook
+    IOC,
+    #[serde(rename = "FOK")]
+    // The order is either filled in its entirety, otherwise it is cancelled
+    FOK,
+    #[serde(rename = "PostOnly")]
+    // If any part of the order is matched, it is cancelled.
+    // The intent is to place the order in OrderBook, and not fill it.
+    PostOnly,
+}
+
+impl Display for TimeInForce {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimeInForce::GTC => f.write_str("GTC"),
+            TimeInForce::IOC => f.write_str("IOC"),
+            TimeInForce::FOK => f.write_str("FOK"),
+            TimeInForce::PostOnly => f.write_str("PostOnly"),
+        }
+    }
+}
+
+impl FromStr for TimeInForce {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "GTC" => Ok(TimeInForce::GTC),
+            "IOC" => Ok(TimeInForce::IOC),
+            "FOK" => Ok(TimeInForce::FOK),
+            "PostOnly" => Ok(TimeInForce::PostOnly),
+            _ => Err(format!("Invalid TimeInForce: {}", s)),
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreate {
+    pub side: String,
+    pub size: u64,
+    pub price: u64,
+    pub leverage: u64,
+
+    /// The type of the order (limit, market, etc.)
+    pub r#type: String,
+
+    /// The address of the market
+    pub market_addr: String,
+
+    pub is_cross: bool,
+
+    /// Time in force strategy. Defaults to GTC if not provided by the client.
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub time_in_force: Option<TimeInForce>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateAction {
+    pub orders: Vec<OrderCreate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancel {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAction {
+    pub cancels: Vec<OrderCancel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAllAction {
+    /// If provided, cancels all active orders for this market. If None, cancels all active orders for the user.
+    pub market_addr: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ActionPayload {
+    OrderCreate(OrderCreateAction),
+    OrderCancel(OrderCancelAction),
+    OrderCancelAll(OrderCancelAllAction),
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendIntentParams {
     pub payload: ActionPayload,
     pub nonce: u64,
     pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CryptoHasher, BCSCryptoHash)]
+pub struct IntentSignatureBody {
+    pub payload: ActionPayload,
+    pub nonce: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateOutput {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateIntentOutput {
+    pub outputs: Vec<OrderCreateOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelOutput {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelIntentOutput {
+    pub outputs: Vec<OrderCancelOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAllIntentOutput {
+    pub outputs: Vec<OrderCancelOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum IntentOutput {
+    OrderCreate(OrderCreateIntentOutput),
+    OrderCancel(OrderCancelIntentOutput),
+    OrderCancelAll(OrderCancelAllIntentOutput),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -688,5 +824,23 @@ impl ToQueryParams for ListWithdrawsParams {
         }
 
         params
+    }
+}
+
+pub trait SigningIntent {
+    fn sign_intent(
+        &self,
+        intent: IntentSignatureBody,
+    ) -> Result<Ed25519Signature, CryptoMaterialError>;
+}
+
+impl SigningIntent for Ed25519PrivateKey {
+    fn sign_intent(
+        &self,
+        intent: IntentSignatureBody,
+    ) -> Result<Ed25519Signature, CryptoMaterialError> {
+        let signature = self.sign_message(&signing_message(&intent)?);
+
+        Ok(signature)
     }
 }

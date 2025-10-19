@@ -7,10 +7,6 @@ use aptos_crypto::{
     ed25519::Ed25519PrivateKey, ed25519::Signature,
     ValidCryptoMaterialStringExt,
 };
-use ekiden_core::sequencer::SigningIntent;
-use ekiden_core::{
-    sequencer::{ActionPayload, IntentSignatureBody},
-};
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
