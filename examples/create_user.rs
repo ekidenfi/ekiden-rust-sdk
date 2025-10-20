@@ -1,17 +1,22 @@
-use ekiden_rust_sdk::aptos::vault::VaultContract;
+use ekiden_rust_sdk::vault::VaultContract;
 use ekiden_rust_sdk::KeyPair;
-use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     tracing_subscriber::fmt::init();
-    println!("🚀 Starting Ekiden SDK Vault Example");
+
+    println!("🚀 Starting Ekiden SDK Basic Example");
+
+    // Check for private key argument, otherwise generate a new key pair
     let args: Vec<String> = std::env::args().collect();
-    let owner = args
-        .get(1)
-        .ok_or_else(|| anyhow::anyhow!("Missing argument for private key"))?;
-    let owner_key = KeyPair::from_private_key(owner)?;
+    let owner_key = if let Some(private_key) = args.get(1) {
+        println!("Using provided private key {}", private_key);
+        KeyPair::from_private_key(private_key)?
+    } else {
+        println!("No private key provided, generating new key pair");
+        KeyPair::generate()
+    };
 
     let funding_key = if let Some(private_key) = args.get(2) {
         println!("Using provided private key {}", private_key);
@@ -45,20 +50,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     vault_contract
         .create_ekiden_user(&owner_key, &funding_key, &trading_key)
         .await?;
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    let vault_contract = VaultContract::new(ekiden_contract, testnet_usdc, "testnet");
-    let deposit_tx = vault_contract
-        .deposit_into_funding_with_transfer_to_cross_trading(
-            10000000u64,
-            &owner_key,
-            &funding_key,
-            &trading_key,
-        )
-        .await?;
-    println!("Deposit transaction: {:?}", deposit_tx);
-    // sleep 2 second
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
     Ok(())
 }

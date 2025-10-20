@@ -47,11 +47,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Start multiple concurrent streams
     let client_clone1 = client.clone();
     let client_clone2 = client.clone();
-    let client_clone3 = client.clone();
 
     let market_addr1 = market_addr.to_string();
     let market_addr2 = market_addr.to_string();
-    let user_addr = key_pair.public_key(); // Use public key as user identifier
 
     // Spawn orderbook stream handler
     let orderbook_handle = tokio::spawn(async move {

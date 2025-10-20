@@ -1,10 +1,11 @@
-use ekiden_core::{
-    referee::ActionStatus,
-    sequencer::{ActionPayload, Intent, IntentOutput},
-};
+use aptos_crypto::ed25519::{Ed25519PrivateKey, Ed25519Signature};
+use aptos_crypto::{signing_message, CryptoMaterialError};
+use aptos_crypto_derive::{BCSCryptoHash, CryptoHasher};
 use serde::{Deserialize, Serialize};
+use serde_with::{serde_as, DisplayFromStr};
 use std::collections::HashMap;
-
+use std::fmt::{Display, Formatter};
+use std::str::FromStr;
 // ===== Common Pagination =====
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,6 +53,8 @@ impl Pagination {
 pub struct AuthorizeParams {
     pub signature: String,
     pub public_key: String,
+    pub timestamp_ms: i64,
+    pub nonce: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -64,6 +67,7 @@ pub struct AuthorizeResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MarketResponse {
     pub symbol: String,
+    pub addr: String,
     pub base_addr: String,
     pub base_decimals: u8,
     pub quote_addr: String,
@@ -83,22 +87,12 @@ pub struct MarketResponse {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ListMarketsParams {
     pub market_addr: Option<String>,
     pub symbol: Option<String>,
     #[serde(flatten)]
     pub pagination: Pagination,
-}
-
-impl Default for ListMarketsParams {
-    fn default() -> Self {
-        Self {
-            market_addr: None,
-            symbol: None,
-            pagination: Pagination::default(),
-        }
-    }
 }
 
 // ===== Order Types =====
@@ -186,18 +180,25 @@ pub struct ListVaultsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PositionResponse {
+    pub sid: String,
     pub market_addr: String,
     pub user_addr: String,
-    pub side: String,
-    pub size: u64,
+    pub size: i64,
+    pub price: u64,
     pub entry_price: u64,
-    pub mark_price: u64,
-    pub unrealized_pnl: i64,
     pub margin: u64,
-    pub leverage: u64,
-    pub liquidation_price: u64,
-    pub created_at: String,
-    pub updated_at: String,
+    pub funding_index: u64,
+    pub is_cross: bool,
+    pub initial_margin: Option<u64>,
+    pub initial_margin_mark: Option<u64>,
+    pub maintenance_margin: Option<u64>,
+    pub leverage: Option<u64>,
+    pub mark_price: u64,
+    pub side: String,
+    pub unrealized_pnl: i64,
+    pub liq_price: Option<u64>,
+    pub timestamp: u64,
+    pub timestamp_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,7 +229,7 @@ pub struct SetUserLeverageParams {
 pub struct PortfolioResponse {
     pub summary: PortfolioSummary,
     pub positions: Vec<PortfolioPosition>,
-    pub vaults: Vec<PortfolioVault>,
+    pub vault_balances: Vec<PortfolioVault>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -256,22 +257,150 @@ pub struct PortfolioPosition {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortfolioVault {
-    pub vault_addr: String,
+    pub id: u64,
     pub asset_addr: String,
-    pub symbol: String,
     pub balance: u64,
-    pub locked_balance: u64,
-    pub available_balance: u64,
-    pub usd_value: u64,
 }
 
 // ===== Intent Types =====
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub enum TimeInForce {
+    #[default]
+    #[serde(rename = "GTC")]
+    // Regardless of what porion of the order is filled, remainder is placed into OrderBook
+    GTC,
+    #[serde(rename = "IOC")]
+    // Fills as much is possible, unfilled part is cancelled and not placed in OrderBook
+    IOC,
+    #[serde(rename = "FOK")]
+    // The order is either filled in its entirety, otherwise it is cancelled
+    FOK,
+    #[serde(rename = "PostOnly")]
+    // If any part of the order is matched, it is cancelled.
+    // The intent is to place the order in OrderBook, and not fill it.
+    PostOnly,
+}
+
+impl Display for TimeInForce {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TimeInForce::GTC => f.write_str("GTC"),
+            TimeInForce::IOC => f.write_str("IOC"),
+            TimeInForce::FOK => f.write_str("FOK"),
+            TimeInForce::PostOnly => f.write_str("PostOnly"),
+        }
+    }
+}
+
+impl FromStr for TimeInForce {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "GTC" => Ok(TimeInForce::GTC),
+            "IOC" => Ok(TimeInForce::IOC),
+            "FOK" => Ok(TimeInForce::FOK),
+            "PostOnly" => Ok(TimeInForce::PostOnly),
+            _ => Err(format!("Invalid TimeInForce: {}", s)),
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreate {
+    pub side: String,
+    pub size: u64,
+    pub price: u64,
+    pub leverage: u64,
+
+    /// The type of the order (limit, market, etc.)
+    pub r#type: String,
+
+    /// The address of the market
+    pub market_addr: String,
+
+    pub is_cross: bool,
+
+    /// Time in force strategy. Defaults to GTC if not provided by the client.
+    #[serde_as(as = "Option<DisplayFromStr>")]
+    pub time_in_force: Option<TimeInForce>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateAction {
+    pub orders: Vec<OrderCreate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancel {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAction {
+    pub cancels: Vec<OrderCancel>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAllAction {
+    /// If provided, cancels all active orders for this market. If None, cancels all active orders for the user.
+    pub market_addr: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ActionPayload {
+    OrderCreate(OrderCreateAction),
+    OrderCancel(OrderCancelAction),
+    OrderCancelAll(OrderCancelAllAction),
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SendIntentParams {
     pub payload: ActionPayload,
     pub nonce: u64,
     pub signature: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, CryptoHasher, BCSCryptoHash)]
+pub struct IntentSignatureBody {
+    pub payload: ActionPayload,
+    pub nonce: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateOutput {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCreateIntentOutput {
+    pub outputs: Vec<OrderCreateOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelOutput {
+    pub sid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelIntentOutput {
+    pub outputs: Vec<OrderCancelOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrderCancelAllIntentOutput {
+    pub outputs: Vec<OrderCancelOutput>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum IntentOutput {
+    OrderCreate(OrderCreateIntentOutput),
+    OrderCancel(OrderCancelIntentOutput),
+    OrderCancelAll(OrderCancelAllIntentOutput),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -334,20 +463,19 @@ pub struct ListWithdrawsParams {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandleResponse {
-    pub market_addr: String,
     pub timestamp: u64,
-    pub open: u64,
-    pub high: u64,
-    pub low: u64,
-    pub close: u64,
+    pub open: f64,
+    pub high: f64,
+    pub low: f64,
+    pub close: f64,
     pub volume: u64,
-    pub interval: String,
+    pub count: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListCandlesParams {
     pub market_addr: String,
-    pub interval: String, // "1m", "5m", "15m", "1h", "4h", "1d"
+    pub timeframe: String, // "1m", "5m", "15m", "1h", "4h", "1d"
     pub start_time: Option<u64>,
     pub end_time: Option<u64>,
     #[serde(flatten)]
@@ -617,7 +745,7 @@ impl ToQueryParams for ListCandlesParams {
     fn to_query_params(&self) -> HashMap<String, String> {
         let mut params = self.pagination.to_query_params();
         params.insert("market_addr".to_string(), self.market_addr.clone());
-        params.insert("interval".to_string(), self.interval.clone());
+        params.insert("timeframe".to_string(), self.timeframe.clone());
 
         if let Some(start_time) = self.start_time {
             params.insert("start_time".to_string(), start_time.to_string());
@@ -701,5 +829,23 @@ impl ToQueryParams for ListWithdrawsParams {
         }
 
         params
+    }
+}
+
+pub trait SigningIntent {
+    fn sign_intent(
+        &self,
+        intent: IntentSignatureBody,
+    ) -> Result<Ed25519Signature, CryptoMaterialError>;
+}
+
+impl SigningIntent for Ed25519PrivateKey {
+    fn sign_intent(
+        &self,
+        intent: IntentSignatureBody,
+    ) -> Result<Ed25519Signature, CryptoMaterialError> {
+        let signature = self.sign_message(&signing_message(&intent)?);
+
+        Ok(signature)
     }
 }

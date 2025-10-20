@@ -1,5 +1,6 @@
 use crate::error::{EkidenError, Result};
 use aptos_crypto::{
+    ed25519,
     ed25519::{Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
     PrivateKey, Signature, SigningKey, Uniform, ValidCryptoMaterialStringExt,
 };
@@ -46,8 +47,8 @@ impl Crypto {
 
     /// Generate a private key from a private key hex string
     pub fn private_key_from_hex(private_key_hex: &str) -> Result<Ed25519PrivateKey> {
-        let private_key = Ed25519PrivateKey::from_encoded_string(&private_key_hex)
-            .map_err(|e| EkidenError::crypto(&format!("Invalid private key hex: {}", e)))?;
+        let private_key = Ed25519PrivateKey::from_encoded_string(private_key_hex)
+            .map_err(|e| EkidenError::crypto(format!("Invalid private key hex: {}", e)))?;
         Ok(private_key)
     }
 
@@ -106,7 +107,8 @@ impl KeyPair {
 
     /// Generate a random key pair
     pub fn generate() -> Self {
-        let private_key = Ed25519PrivateKey::generate_for_testing();
+        let rng = &mut rand::thread_rng();
+        let private_key = ed25519::PrivateKey::generate(rng);
         Self { private_key }
     }
 
@@ -128,13 +130,18 @@ impl KeyPair {
     }
 
     /// Sign the authorization message "AUTHORIZE"
-    pub fn sign_authorize(&self) -> String {
-        self.sign(b"AUTHORIZE")
+    pub fn sign_authorize(&self, timestamp: i64, nonce: &str) -> String {
+        self.sign(format!("AUTHORIZE|{}|{}", timestamp, nonce).as_bytes())
     }
 
     /// Get the private key reference
     pub fn get_private_key(&self) -> &Ed25519PrivateKey {
         &self.private_key
+    }
+
+    /// Get the public key as hex string
+    pub fn get_public_key(&self) -> Ed25519PublicKey {
+        self.private_key.public_key()
     }
 }
 
@@ -208,6 +215,10 @@ pub mod format {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::distributions::Alphanumeric;
+    use rand::{thread_rng, Rng};
+    use std::iter;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn test_key_pair_generation() {
@@ -236,10 +247,22 @@ mod tests {
     #[test]
     fn test_authorize_signature() {
         let key_pair = KeyPair::generate();
-        let signature = key_pair.sign_authorize();
+        let now = SystemTime::now();
+        let mut rng = thread_rng();
+        let timestamp = now.duration_since(UNIX_EPOCH).unwrap().as_millis() as i64;
+        let nonce: String = iter::repeat(())
+            .map(|()| rng.sample(Alphanumeric))
+            .take(10) // Generate a string of 10 characters
+            .collect();
+        let signature = key_pair.sign_authorize(timestamp, &nonce);
         let public_key = key_pair.public_key();
 
-        let is_valid = Crypto::verify_signature(b"AUTHORIZE", &signature, &public_key).unwrap();
+        let is_valid = Crypto::verify_signature(
+            format!("AUTHORIZE|{}|{}", timestamp, nonce).as_bytes(),
+            &signature,
+            &public_key,
+        )
+        .unwrap();
         assert!(is_valid);
     }
 

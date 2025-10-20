@@ -2,17 +2,8 @@ use crate::auth::Auth;
 use crate::config::EkidenConfig;
 use crate::error::{EkidenError, Result};
 use crate::types::*;
-use crate::utils::format;
 use crate::ws::WebSocketClient;
-use aptos_crypto::{
-    ed25519::Ed25519PrivateKey, ed25519::Signature, PrivateKey, SigningKey,
-    ValidCryptoMaterialStringExt,
-};
-use ekiden_core::sequencer::SigningIntent;
-use ekiden_core::{
-    referee::ActionStatus,
-    sequencer::{ActionPayload, IntentSignatureBody},
-};
+use aptos_crypto::{ed25519::Ed25519PrivateKey, ed25519::Signature, ValidCryptoMaterialStringExt};
 use reqwest::{Client, Response};
 use serde::de::DeserializeOwned;
 use std::sync::Arc;
@@ -25,6 +16,8 @@ pub struct EkidenClient {
     config: EkidenConfig,
     http_client: Client,
     auth: Arc<RwLock<Auth>>,
+    funding_auth: Arc<RwLock<Auth>>,
+    trading_auth: Arc<RwLock<Auth>>,
     ws_client: Option<Arc<RwLock<WebSocketClient>>>,
 }
 
@@ -44,6 +37,8 @@ impl EkidenClient {
             config,
             http_client,
             auth: Arc::new(RwLock::new(Auth::new())),
+            funding_auth: Arc::new(RwLock::new(Auth::new())),
+            trading_auth: Arc::new(RwLock::new(Auth::new())),
             ws_client,
         })
     }
@@ -75,6 +70,18 @@ impl EkidenClient {
         Ok(())
     }
 
+    pub async fn set_funding_private_key(&self, private_key: &str) -> Result<()> {
+        let mut auth = self.funding_auth.write().await;
+        *auth = auth.clone().with_private_key(private_key)?;
+        Ok(())
+    }
+
+    pub async fn set_trading_private_key(&self, private_key: &str) -> Result<()> {
+        let mut auth = self.trading_auth.write().await;
+        *auth = auth.clone().with_private_key(private_key)?;
+        Ok(())
+    }
+
     /// Set the authentication token
     pub async fn set_token(&self, token: &str) {
         let mut auth = self.auth.write().await;
@@ -84,6 +91,24 @@ impl EkidenClient {
     /// Get the current authentication token
     pub async fn token(&self) -> Option<String> {
         self.auth.read().await.token().map(|s| s.to_string())
+    }
+
+    /// Get the current authentication token
+    pub async fn funding_token(&self) -> Option<String> {
+        self.funding_auth
+            .read()
+            .await
+            .token()
+            .map(|s| s.to_string())
+    }
+
+    /// Get the current authentication token
+    pub async fn trading_token(&self) -> Option<String> {
+        self.trading_auth
+            .read()
+            .await
+            .token()
+            .map(|s| s.to_string())
     }
 
     /// Get the public key if available
@@ -120,12 +145,54 @@ impl EkidenClient {
         Ok(response)
     }
 
+    pub async fn authorize_funding(&self) -> Result<AuthorizeResponse> {
+        let auth_params = {
+            let auth = self.funding_auth.read().await;
+            auth.generate_authorize_params()?
+        };
+
+        let response: AuthorizeResponse = self
+            .request("authorize", RequestConfig::post(&auth_params)?)
+            .await?;
+
+        println!("Authorization successful: {}", response.token);
+        // Store the token
+        {
+            let mut auth = self.funding_auth.write().await;
+            auth.process_authorize_response(response.clone());
+        }
+
+        info!("Successfully authenticated with Ekiden API");
+        Ok(response)
+    }
+
+    pub async fn authorize_trading(&self) -> Result<AuthorizeResponse> {
+        let auth_params = {
+            let auth = self.trading_auth.read().await;
+            auth.generate_authorize_params()?
+        };
+
+        let response: AuthorizeResponse = self
+            .request("authorize", RequestConfig::post(&auth_params)?)
+            .await?;
+
+        println!("Authorization successful: {}", response.token);
+        // Store the token
+        {
+            let mut auth = self.trading_auth.write().await;
+            auth.process_authorize_response(response.clone());
+        }
+
+        info!("Successfully authenticated with Ekiden API");
+        Ok(response)
+    }
+
     // ===== Market Endpoints =====
 
     /// Get market information
     pub async fn get_markets(&self, params: ListMarketsParams) -> Result<Vec<MarketResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("market_info", config).await
+        self.request("market/market_info", config).await
     }
 
     /// Get a specific market by address
@@ -155,7 +222,7 @@ impl EkidenClient {
     /// Get orders for a market
     pub async fn get_orders(&self, params: ListOrdersParams) -> Result<Vec<OrderResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("orders", config).await
+        self.request("market/orders", config).await
     }
 
     /// Get orders for a specific market and side
@@ -181,7 +248,7 @@ impl EkidenClient {
     /// Get fills (trades) for a market
     pub async fn get_fills(&self, params: ListFillsParams) -> Result<Vec<FillResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("fills", config).await
+        self.request("market/fills", config).await
     }
 
     /// Get recent fills for a market
@@ -208,7 +275,7 @@ impl EkidenClient {
     pub async fn get_user_vaults(&self, params: ListVaultsParams) -> Result<Vec<VaultResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth(self.token().await.unwrap_or_default());
+            .with_auth(self.trading_token().await.unwrap_or_default());
         self.request("user/vaults", config).await
     }
 
@@ -227,7 +294,7 @@ impl EkidenClient {
     ) -> Result<Vec<PositionResponse>> {
         let config = RequestConfig::get()
             .with_query(params.to_query_params())
-            .with_auth(self.token().await.unwrap_or_default());
+            .with_auth(self.trading_token().await.unwrap_or_default());
         self.request("user/positions", config).await
     }
 
@@ -280,7 +347,7 @@ impl EkidenClient {
 
     /// Get user portfolio
     pub async fn get_user_portfolio(&self) -> Result<PortfolioResponse> {
-        let config = RequestConfig::get().with_auth(self.token().await.unwrap_or_default());
+        let config = RequestConfig::get().with_auth(self.trading_token().await.unwrap_or_default());
         println!("Fetching user portfolio... {:?}", config);
         self.request("user/portfolio", config).await
     }
@@ -291,20 +358,20 @@ impl EkidenClient {
         payload: &ActionPayload,
         nonce: u64,
     ) -> Result<Signature> {
-        let key_pair = Ed25519PrivateKey::from_encoded_string(&private_key_str).unwrap();
+        let key_pair = Ed25519PrivateKey::from_encoded_string(private_key_str).unwrap();
         let signature = key_pair
             .sign_intent(IntentSignatureBody {
                 payload: payload.clone(),
                 nonce,
             })
-            .map_err(|e| EkidenError::auth(&format!("Failed to sign intent: {}", e)))?;
+            .map_err(|e| EkidenError::auth(format!("Failed to sign intent: {}", e)))?;
         Ok(signature)
     }
 
     /// Send an intent (execute actions)
     pub async fn send_intent(&self, params: SendIntentParams) -> Result<SendIntentResponse> {
         let config =
-            RequestConfig::post(&params)?.with_auth(self.token().await.unwrap_or_default());
+            RequestConfig::post(&params)?.with_auth(self.trading_token().await.unwrap_or_default());
         self.request("user/intent/commit", config).await
     }
 
@@ -356,7 +423,7 @@ impl EkidenClient {
     /// Get candlestick data
     pub async fn get_candles(&self, params: ListCandlesParams) -> Result<Vec<CandleResponse>> {
         let config = RequestConfig::get().with_query(params.to_query_params());
-        self.request("candles", config).await
+        self.request("market/candles", config).await
     }
 
     /// Get recent candles for a market
@@ -368,7 +435,7 @@ impl EkidenClient {
     ) -> Result<Vec<CandleResponse>> {
         let params = ListCandlesParams {
             market_addr: market_addr.to_string(),
-            interval: interval.to_string(),
+            timeframe: interval.to_string(),
             start_time: None,
             end_time: None,
             pagination: Pagination {
@@ -548,6 +615,8 @@ impl EkidenClient {
 pub struct EkidenClientBuilder {
     config: EkidenConfig,
     private_key: Option<String>,
+    funding_private_key: Option<String>,
+    trading_private_key: Option<String>,
     token: Option<String>,
 }
 
@@ -557,6 +626,8 @@ impl EkidenClientBuilder {
         Self {
             config: EkidenConfig::default(),
             private_key: None,
+            funding_private_key: None,
+            trading_private_key: None,
             token: None,
         }
     }
@@ -597,6 +668,18 @@ impl EkidenClientBuilder {
         self
     }
 
+    /// Set the trading account private key
+    pub fn trading_private_key<S: Into<String>>(mut self, private_key: S) -> Self {
+        self.trading_private_key = Some(private_key.into());
+        self
+    }
+
+    /// Set the funding account private key
+    pub fn funding_private_key<S: Into<String>>(mut self, private_key: S) -> Self {
+        self.funding_private_key = Some(private_key.into());
+        self
+    }
+
     /// Set the authentication token
     pub fn token<S: Into<String>>(mut self, token: S) -> Self {
         self.token = Some(token.into());
@@ -630,6 +713,16 @@ impl EkidenClientBuilder {
             client.set_private_key(&private_key).await?;
         }
 
+        // Set private key if provided
+        if let Some(private_key) = self.funding_private_key {
+            client.set_funding_private_key(&private_key).await?;
+        }
+
+        // Set private key if provided
+        if let Some(private_key) = self.trading_private_key {
+            client.set_trading_private_key(&private_key).await?;
+        }
+
         // Set token if provided
         if let Some(token) = self.token {
             client.set_token(&token).await;
@@ -642,6 +735,8 @@ impl EkidenClientBuilder {
     pub async fn build_and_auth(self) -> Result<EkidenClient> {
         let client = self.build().await?;
         client.authorize().await?;
+        client.authorize_funding().await?;
+        client.authorize_trading().await?;
         Ok(client)
     }
 }
